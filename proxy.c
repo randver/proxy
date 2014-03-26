@@ -18,6 +18,7 @@
 int parse_uri(char *uri, char *target_addr, char *path, int  *port);
 void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri, int size);
 void echo(int connfd);
+void handle_request(int connfd);
 
 void sigchld_handler(int sig) //line:conc:echoserverp:handlerstart
 {
@@ -49,7 +50,7 @@ int main(int argc, char **argv)
     connfd = Accept(listenfd, (SA *) &clientaddr, &clientlen);
     if (Fork() == 0) { 
         Close(listenfd); /* Child closes its listening socket */
-        echo(connfd);    /* Child services client */ //line:conc:echoserverp:echofun
+        handle_request(connfd);    /* Child services client */ //line:conc:echoserverp:echofun
         Close(connfd);   /* Child closes connection with client */ //line:conc:echoserverp:childclose
         exit(0);         /* Child exits */
     }
@@ -139,16 +140,38 @@ void format_log_entry(char *logstring, struct sockaddr_in *sockaddr,
     sprintf(logstring, "%s: %d.%d.%d.%d %s", time_str, a, b, c, d, uri);
 }
 
-void echo(int connfd) 
+
+void handle_request(int connfd)
 {
     size_t n; 
     char buf[MAXLINE]; 
-    rio_t rio;
+    char buf2[MAXLINE]; 
+    rio_t rio, rio2;
+
+    char method[MAXLINE];
+    char uri[MAXLINE];
+    char version[MAXLINE];
+    char hostname[MAXLINE];
+    char pathname[MAXLINE];
+    int port, connfd_new;
 
     Rio_readinitb(&rio, connfd);
+    Rio_readlineb(&rio, buf, MAXLINE);
+    sscanf(buf, "%s %s %s", method, uri, version);
+    printf("Prufa: %s %s %s", method, uri,version);
+    port = parse_uri(uri, hostname, pathname, port);
     while((n = Rio_readlineb(&rio, buf, MAXLINE)) != 0) { //line:netp:echo:eof
     //printf("server received %d bytes\n", (int)n);
-    printf("%s", buf);
-    Rio_writen(connfd, buf, n);
+        printf("%s", buf);
+        Rio_writen(connfd, buf, n);
     }
+    connfd_new = open_clientfd(*hostname, port); 
+
+    Rio_readinitb(&rio2, connfd_new);
+    Rio_readlineb(&rio2, buf2, MAXLINE);
+    printf("%s", buf2);
+
+
+
+    
 }
